@@ -3,11 +3,22 @@
 import { useState } from 'react';
 
 interface TrackMetadata {
+  id: string;
   title: string;
   artist: string;
   album: string;
   coverUrl: string;
   durationMs: number;
+}
+
+interface PlaylistMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  owner: string;
+  coverUrl: string;
+  totalTracks: number;
+  tracks: TrackMetadata[];
 }
 
 // Pistas de ejemplo predefinidas
@@ -30,11 +41,13 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingPlaylist, setDownloadingPlaylist] = useState(false);
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [track, setTrack] = useState<TrackMetadata | null>(null);
+  const [playlist, setPlaylist] = useState<PlaylistMetadata | null>(null);
   const [progress, setProgress] = useState('');
 
   // Paso 1: Vista previa de la pista
@@ -61,8 +74,18 @@ export default function Home() {
         throw new Error(data.error || 'No se pudo obtener la información');
       }
 
-      const metadata: TrackMetadata = await response.json();
-      setTrack(metadata);
+      const data = await response.json();
+
+      if (data.type === 'playlist' && data.playlist) {
+        setPlaylist(data.playlist);
+        setTrack(null);
+      } else if (data.type === 'track' && data.metadata) {
+        setTrack({ id: data.id, ...data.metadata });
+        setPlaylist(null);
+      } else {
+        setTrack(data as TrackMetadata);
+        setPlaylist(null);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       setError(message);
@@ -75,6 +98,7 @@ export default function Home() {
   const handleSelectExample = (uri: string) => {
     setUrl(uri);
     setTrack(null);
+    setPlaylist(null);
     setError(null);
     handlePreview(undefined, uri);
   };
@@ -128,6 +152,62 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // Paso 2: Descargar playlist completa (ZIP con todos los MP3)
+  const handleDownloadPlaylist = async () => {
+    if (!playlist) return;
+    setDownloadingPlaylist(true);
+    setLoading(true);
+    setError(null);
+    setProgress('Descargando playlist completa...');
+
+    try {
+      const response = await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: `spotify:playlist:${playlist.id}`, type: 'playlist' }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Fallo al descargar la playlist');
+      }
+
+      setProgress('Preparando archivo ZIP...');
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+
+      const disposition = response.headers.get('content-disposition');
+      let filename = `${safeFilename(playlist.owner, playlist.name)}.zip`;
+      if (disposition && disposition.includes('filename=')) {
+        filename = disposition.split('filename="')[1]?.split('"')[0] || filename;
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      setProgress(`¡Playlist "${playlist.name}" descargada!`);
+      setTimeout(() => setProgress(''), 4000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      setError(message);
+      setProgress('');
+    } finally {
+      setDownloadingPlaylist(false);
+      setLoading(false);
+    }
+  };
+
+  // Sanitizar nombre de archivo (compartido con handleDownloadLyricsFile)
+  function safeFilename(artist: string, title: string): string {
+    return `${artist} - ${title}`.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ_\-\. ]/g, '');
+  }
 
   // Obtener y ver / descargar Letra
   const handleGetLyrics = async () => {
@@ -184,6 +264,7 @@ export default function Home() {
   const handleReset = () => {
     setUrl('');
     setTrack(null);
+    setPlaylist(null);
     setLyrics(null);
     setLyricsOpen(false);
     setError(null);
@@ -266,7 +347,7 @@ export default function Home() {
           </form>
 
           {/* Pistas de ejemplo */}
-          {!track && !loading && (
+          {!track && !playlist && !loading && (
             <div className="mb-4">
               <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider font-medium">
                 Pistas rápidas
@@ -432,6 +513,168 @@ export default function Home() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Playlist Preview Card */}
+          {playlist && (
+            <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 mb-4">
+              <div className="flex gap-4 items-start mb-4">
+                {/* Playlist Cover */}
+                {playlist.coverUrl && (
+                  <div className="flex-shrink-0">
+                    <img
+                      src={playlist.coverUrl}
+                      alt={`${playlist.name} cover`}
+                      className="w-24 h-24 rounded-lg object-cover shadow-lg border border-gray-700"
+                    />
+                  </div>
+                )}
+                {/* Playlist Info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-semibold text-base truncate">{playlist.name}</h3>
+                  <p className="text-gray-400 text-sm truncate">por {playlist.owner}</p>
+                  {playlist.description && (
+                    <p className="text-gray-500 text-xs truncate mt-0.5">{playlist.description}</p>
+                  )}
+                  <p className="text-gray-500 text-xs mt-1">🎵 {playlist.totalTracks} pistas</p>
+                </div>
+              </div>
+
+              {/* Botón principal: Descargar playlist completa (ZIP) */}
+              <button
+                onClick={handleDownloadPlaylist}
+                disabled={downloadingPlaylist}
+                className="w-full mt-2 mb-4 px-4 py-3 bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/30"
+              >
+                {downloadingPlaylist ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    <span>{progress || 'Procesando playlist...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                      />
+                    </svg>
+                    Descargar playlist completa (ZIP)
+                  </>
+                )}
+              </button>
+
+              {/* Lista de pistas individuales */}
+              <div className="max-h-96 overflow-y-auto border border-gray-700 rounded-lg bg-gray-900/50">
+                <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider px-3 py-2 border-b border-gray-700">
+                  Pistas individuales
+                </p>
+                <div className="py-1">
+                  {playlist.tracks.map((t, idx) => (
+                    <div
+                      key={t.id}
+                      className="flex gap-3 items-center px-3 py-2 hover:bg-gray-800/50 transition-colors border-b border-gray-800/50 last:border-0"
+                    >
+                      <span className="text-gray-500 text-xs w-4 text-center">{idx + 1}.</span>
+                      {t.coverUrl && (
+                        <img
+                          src={t.coverUrl}
+                          alt={t.title}
+                          className="w-10 h-10 rounded object-cover border border-gray-700 flex-shrink-0"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-200 text-sm truncate">{t.title}</p>
+                        <p className="text-gray-500 text-xs truncate">{t.artist}</p>
+                        {t.durationMs > 0 && (
+                          <p className="text-gray-600 text-xs">{formatDuration(t.durationMs)}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setUrl(`spotify:track:${t.id}`);
+                          handlePreview(undefined, `spotify:track:${t.id}`);
+                        }}
+                        className="text-xs text-gray-500 hover:text-green-400 transition-colors"
+                        title="Vista previa de esta pista"
+                      >
+                        🔍
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setDownloading(true);
+                          setLoading(true);
+                          setError(null);
+                          setProgress(`Descargando ${t.title}...`);
+                          try {
+                            const response = await fetch('/api/download', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ url: `spotify:track:${t.id}`, type: 'track' }),
+                            });
+                            if (!response.ok) {
+                              const data = await response.json();
+                              throw new Error(data.error || 'Fallo en la descarga');
+                            }
+                            const blob = await response.blob();
+                            const downloadUrl = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = downloadUrl;
+                            const disposition = response.headers.get('content-disposition');
+                            let filename = `${safeFilename(t.artist, t.title)}.mp3`;
+                            if (disposition && disposition.includes('filename=')) {
+                              filename =
+                                disposition.split('filename="')[1]?.split('"')[0] || filename;
+                            }
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            window.URL.revokeObjectURL(downloadUrl);
+                            setProgress(`¡${t.title} descargado!`);
+                            setTimeout(() => setProgress(''), 3000);
+                          } catch (err: unknown) {
+                            const message =
+                              err instanceof Error ? err.message : 'Error desconocido';
+                            setError(message);
+                            setProgress('');
+                          } finally {
+                            setDownloading(false);
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={downloading}
+                        className="text-xs text-green-400 hover:text-green-300 transition-colors flex-shrink-0"
+                        title="Descargar este MP3"
+                      >
+                        ⬇
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

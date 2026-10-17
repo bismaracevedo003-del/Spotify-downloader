@@ -1,9 +1,4 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-
-const execFileAsync = promisify(execFile);
-const YT_DLP_PATH = path.join(process.cwd(), 'node_modules', 'yt-dlp-exec', 'bin', 'yt-dlp.exe');
+import ytDlpExec, { YtDlpVideoInfo } from 'yt-dlp-exec';
 
 // 1. Intentar letras con api.lyrics.ovh (público, sin token)
 async function fetchLyricsOvh(artist: string, title: string): Promise<string | null> {
@@ -28,9 +23,11 @@ async function fetchLyricsOvh(artist: string, title: string): Promise<string | n
 async function fetchLyricsFromYouTube(artist: string, title: string): Promise<string | null> {
   try {
     const query = `ytsearch1:${title} ${artist} audio lyrics`;
-    const { stdout } = await execFileAsync(YT_DLP_PATH, ['--dump-json', '--no-playlist', query]);
+    const d = (await ytDlpExec(query, {
+      dumpJson: true,
+      noPlaylist: true,
+    })) as YtDlpVideoInfo;
 
-    const d = JSON.parse(stdout);
     const subs =
       d.subtitles?.es || d.subtitles?.en || d.automatic_captions?.es || d.automatic_captions?.en;
 

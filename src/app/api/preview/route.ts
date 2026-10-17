@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSpotifyTrackId, getTrackMetadata } from '../spotify';
+import { detectSpotifyInput, getTrackMetadata, getPlaylistInfo } from '../spotify';
 
 export async function POST(req: NextRequest) {
   try {
     const { url } = await req.json();
-    const trackId = getSpotifyTrackId(url);
+    const detected = detectSpotifyInput(url);
 
-    if (!trackId) {
+    if (detected.type === 'unknown' || !detected.id) {
       return NextResponse.json({ error: 'Enlace o URI de Spotify no válido.' }, { status: 400 });
     }
 
-    const metadata = await getTrackMetadata(trackId);
-    return NextResponse.json(metadata);
+    // ------------------------------------------------------------
+    // PLAYLIST: devolver info completa con todas las pistas
+    // ------------------------------------------------------------
+    if (detected.type === 'playlist') {
+      const playlist = await getPlaylistInfo(detected.id);
+      return NextResponse.json({ type: 'playlist', playlist });
+    }
+
+    // ------------------------------------------------------------
+    // TRACK individual
+    // ------------------------------------------------------------
+    const metadata = await getTrackMetadata(detected.id);
+    return NextResponse.json({ type: 'track', id: detected.id, metadata });
   } catch (error: unknown) {
     console.error('Error obteniendo metadatos:', error);
     const message = error instanceof Error ? error.message : 'Error obteniendo metadatos';
