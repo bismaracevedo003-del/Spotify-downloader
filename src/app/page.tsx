@@ -10,7 +10,6 @@ interface TrackMetadata {
   durationMs: number;
 }
 
-// Pistas de ejemplo predefinidas
 const EXAMPLE_TRACKS = [
   { uri: 'spotify:track:5ITV0zqzjOYfFWpW0xBmRa', label: 'Show Me Love – WizTheMc' },
   { uri: 'spotify:track:367Cb3sFU9yiHJ9T3vciHk', label: 'Esta Vida – Jorge Celedón' },
@@ -37,7 +36,6 @@ export default function Home() {
   const [track, setTrack] = useState<TrackMetadata | null>(null);
   const [progress, setProgress] = useState('');
 
-  // Paso 1: Vista previa de la pista
   const handlePreview = async (e?: React.FormEvent, overrideUrl?: string) => {
     if (e) e.preventDefault();
     const targetUrl = overrideUrl || url;
@@ -71,7 +69,6 @@ export default function Home() {
     }
   };
 
-  // Seleccionar una pista de ejemplo
   const handleSelectExample = (uri: string) => {
     setUrl(uri);
     setTrack(null);
@@ -79,7 +76,6 @@ export default function Home() {
     handlePreview(undefined, uri);
   };
 
-  // Paso 2: Descargar MP3
   const handleDownload = async () => {
     setDownloading(true);
     setLoading(true);
@@ -117,7 +113,7 @@ export default function Home() {
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
 
-      setProgress('¡Audio MP3 descargado!');
+      setProgress('MP3 listo.');
       setTimeout(() => setProgress(''), 4000);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -129,7 +125,6 @@ export default function Home() {
     }
   };
 
-  // Obtener y ver / descargar Letra
   const handleGetLyrics = async () => {
     if (!track) return;
     if (lyrics) {
@@ -161,7 +156,6 @@ export default function Home() {
     }
   };
 
-  // Guardar letra como archivo .txt
   const handleDownloadLyricsFile = () => {
     if (!lyrics || !track) return;
     const safeTitle = `${track.artist} - ${track.title} Letra.txt`.replace(

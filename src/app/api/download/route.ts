@@ -11,10 +11,8 @@ import { getLyrics } from '@/lib/lyrics';
 
 const execFileAsync = promisify(execFile);
 
-// Ruta absoluta al binario de yt-dlp
 const YT_DLP_PATH = path.join(process.cwd(), 'node_modules', 'yt-dlp-exec', 'bin', 'yt-dlp.exe');
 
-// Intenta localizar ffmpeg (instalado vía winget) para que yt-dlp convierta a MP3
 function resolveFfmpegDir(): string | null {
   const ffmpegDir = path.join(
     process.env.LOCALAPPDATA || '',
@@ -43,14 +41,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Obtener metadatos de la pista (incluye carátula de Spotify)
     const metadata = await getTrackMetadata(trackId);
     const searchQuery = `ytsearch1:${metadata.title} ${metadata.artist} audio`;
 
-    // Buscar letra (se embebe en el MP3 si se encuentra)
     const lyrics = await getLyrics(metadata.artist, metadata.title);
 
-    // Descargar carátula de Spotify a un archivo temporal
     let coverBuffer: Buffer | null = null;
     if (metadata.coverUrl) {
       try {
@@ -59,11 +54,10 @@ export async function POST(req: NextRequest) {
           coverBuffer = Buffer.from(await coverRes.arrayBuffer());
         }
       } catch {
-        // Si falla la carátula, seguimos sin ella
+        coverBuffer = null;
       }
     }
 
-    // Archivos temporales de salida
     const tempFileName = `song_${Date.now()}`;
     const tmpDir = os.tmpdir();
     const tempMp3 = path.join(tmpDir, `${tempFileName}.mp3`);
@@ -87,10 +81,8 @@ export async function POST(req: NextRequest) {
       ytArgs.push('--ffmpeg-location', ffmpegDir);
     }
 
-    // Descarga y conversión a MP3 con yt-dlp
     await execFileAsync(YT_DLP_PATH, ytArgs);
 
-    // Verificar que el archivo existe
     if (!fs.existsSync(tempMp3)) {
       return NextResponse.json(
         { error: 'No se pudo descargar el audio. Intenta con otra pista.' },
@@ -98,14 +90,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Construir tags ID3v2 con node-id3 (título, artista, álbum, carátula APIC y letra USLT)
     const tags: Tags = {
       title: metadata.title || undefined,
       artist: metadata.artist || undefined,
       album: metadata.album || undefined,
     };
 
-    // Carátula embebida (attached picture / APIC)
     if (coverBuffer) {
       tags.image = {
         mime: 'image/jpeg',
@@ -118,10 +108,10 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Letra embebida (Unsynchronised Lyrics / USLT)
     if (lyrics) {
       tags.unsynchronisedLyrics = {
-        language: 'eng', // ID3 requiere un código de idioma de 3 caracteres
+        language: 'eng',
+
         text: lyrics,
       };
     }
@@ -131,7 +121,6 @@ export async function POST(req: NextRequest) {
     const fileBuffer = fs.readFileSync(tempMp3);
     fs.unlinkSync(tempMp3);
 
-    // Retornar archivo al cliente (carátula y letra ya van embebidas dentro del MP3)
     const safeTitle = `${metadata.artist} - ${metadata.title}`.replace(
       /[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ_\-\. ]/g,
       ''

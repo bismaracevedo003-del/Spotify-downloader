@@ -17,8 +17,8 @@ jobs:
       - name: Instalar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
 
       - name: Instalar dependencias
         run: npm ci
@@ -30,11 +30,10 @@ jobs:
         run: npm run format:check
 
       - name: Verificar tipos con TypeScript
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Construir aplicación Next.js
         run: npm run build
         env:
-          # Variables opcionales para el build (ajustar según sea necesario)
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}

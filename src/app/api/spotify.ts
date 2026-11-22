@@ -1,7 +1,3 @@
-// Helper compartido para obtener metadatos de Spotify
-// Prioridad 1: Web Embed de Spotify (¡100% público, no requiere tokens, NUNCA expira!)
-// Prioridad 2: Spotify Web API oficial con Client Credentials
-
 export function getSpotifyTrackId(input: string): string | null {
   const uriMatch = input.match(/spotify:track:([a-zA-Z0-9]+)/);
   if (uriMatch) return uriMatch[1];
@@ -17,7 +13,6 @@ export interface TrackInfo {
   durationMs: number;
 }
 
-// 1. Extraer directo del Web Embed de Spotify (sin token, sin límites)
 async function fetchFromEmbed(trackId: string): Promise<TrackInfo | null> {
   try {
     const res = await fetch(`https://open.spotify.com/embed/track/${trackId}`, {
@@ -56,7 +51,6 @@ async function fetchFromEmbed(trackId: string): Promise<TrackInfo | null> {
   }
 }
 
-// 2. Extraer de la API oficial de Spotify (con Client Credentials)
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function getSpotifyToken(): Promise<string | null> {
@@ -117,7 +111,6 @@ async function fetchFromApi(trackId: string): Promise<TrackInfo | null> {
   }
 }
 
-// Función principal: intenta embed (sin token) y si falla intenta API
 export async function getTrackMetadata(trackId: string): Promise<TrackInfo> {
   const fromEmbed = await fetchFromEmbed(trackId);
   if (fromEmbed) return fromEmbed;

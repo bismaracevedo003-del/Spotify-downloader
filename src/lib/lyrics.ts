@@ -5,7 +5,6 @@ import path from 'path';
 const execFileAsync = promisify(execFile);
 const YT_DLP_PATH = path.join(process.cwd(), 'node_modules', 'yt-dlp-exec', 'bin', 'yt-dlp.exe');
 
-// 1. Intentar letras con api.lyrics.ovh (público, sin token)
 async function fetchLyricsOvh(artist: string, title: string): Promise<string | null> {
   try {
     const cleanArtist = artist.split(',')[0].trim();
@@ -24,7 +23,6 @@ async function fetchLyricsOvh(artist: string, title: string): Promise<string | n
   }
 }
 
-// 2. Fallback: extraer subtítulos/transcripción del video oficial con yt-dlp
 async function fetchLyricsFromYouTube(artist: string, title: string): Promise<string | null> {
   try {
     const query = `ytsearch1:${title} ${artist} audio lyrics`;
@@ -42,7 +40,6 @@ async function fetchLyricsFromYouTube(artist: string, title: string): Promise<st
     const res = await fetch(srt.url);
     const text = await res.text();
 
-    // Limpiar marcas de tiempo y etiquetas VTT/XML
     const clean = text
       .replace(/<[^>]+>/g, '')
       .replace(/\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}/g, '')
@@ -61,10 +58,6 @@ async function fetchLyricsFromYouTube(artist: string, title: string): Promise<st
   }
 }
 
-/**
- * Busca la letra de una canción.
- * Intenta primero lyrics.ovh y, si falla, usa subtítulos de YouTube como fallback.
- */
 export async function getLyrics(artist: string, title: string): Promise<string | null> {
   if (!title) return null;
 

@@ -1,126 +1,116 @@
 # Spotify Downloader
 
-Descargador de música de Spotify que obtiene el audio, la carátula y la letra de una canción, y los embebe todo dentro de un solo archivo **MP3** con metadatos ID3v2 (título, artista, álbum, portada APIC y letra USLT).
+[![CI](https://github.com/bismaracevedo003-del/Spotify-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/bismaracevedo003-del/Spotify-downloader/actions/workflows/ci.yml)
 
-> ⚠️ **Uso responsable:** Esta herramienta es para uso personal y educativo. Respeta los derechos de autor y los términos de servicio de Spotify y de las plataformas de origen del audio.
+Next.js application that resolves Spotify track metadata and produces an MP3 with embedded ID3v2 tags: title, artist, album, front cover and lyrics.
 
-## ✨ Características
+> **Scope:** This project does not remove DRM and does not fetch audio from Spotify. It reads public track metadata from Spotify, searches for audio with `yt-dlp`, converts it with `ffmpeg`, and writes the resulting tags with `node-id3`. Use it only with content you are allowed to store or process, and review the terms of every source service involved.
 
-- 🎵 Descarga audio de Spotify en formato MP3 (calidad máxima V0)
-- 🖼️ Carátula del álbum embebida dentro del MP3 (frame APIC)
-- 📝 Letra de la canción embebida dentro del MP3 (frame USLT)
-- 🏷️ Metadatos ID3v2: título, artista, álbum
-- 🔍 Vista previa de la pista antes de descargar
-- 📖 Búsqueda y visualización de letras (con fallback a subtítulos de YouTube)
-- 🚀 Construido con Next.js 16, React 19, yt-dlp, ffmpeg y node-id3
+## Stack
 
-## 📋 Requisitos previos
+| Layer     | Technology                                           |
+| --------- | ---------------------------------------------------- |
+| Framework | Next.js 16, React 19, TypeScript                     |
+| Metadata  | Spotify public embed, optional Spotify Web API       |
+| Audio     | `yt-dlp-exec`, `ffmpeg`                              |
+| Tagging   | `node-id3` (APIC, USLT, text frames)                 |
+| Tooling   | ESLint, Prettier, Husky, lint-staged, GitHub Actions |
 
-- [Node.js](https://nodejs.org/) 18 o superior
-- [ffmpeg](https://ffmpeg.org/download.html) (requerido por yt-dlp para convertir a MP3)
-  - Windows (winget): `winget install Gyan.FFmpeg`
-  - macOS: `brew install ffmpeg`
-  - Linux: `sudo apt install ffmpeg`
+## Flow
 
-## 🚀 Instalación y uso local
+1. `POST /api/preview` extracts the track ID and resolves metadata through the Spotify embed; if that fails, it falls back to the official API when credentials are present.
+2. `POST /api/lyrics` returns lyrics from the shared helper, including its configured fallback sources.
+3. `POST /api/download` searches for audio using the resolved title and artist, converts it to MP3, embeds the cover and lyrics, and streams the file to the browser.
+
+## Requirements
+
+- Node.js 20 or newer
+- `ffmpeg` available on `PATH`
+- Windows: `winget install Gyan.FFmpeg`
+- macOS: `brew install ffmpeg`
+- Debian/Ubuntu: `sudo apt install ffmpeg`
+
+`yt-dlp` is installed as a project dependency through `yt-dlp-exec`.
+
+## Local setup
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/TU_USUARIO/spotify-downloader.git
-cd spotify-downloader
-
-# Instalar dependencias
+git clone https://github.com/bismaracevedo003-del/Spotify-downloader.git
+cd Spotify-downloader
 npm install
-
-# Configurar variables de entorno (opcional, para API oficial de Spotify)
 cp .env.example .env.local
-# Editar .env.local con tus credenciales de Spotify Developer
-
-# Iniciar en modo desarrollo
 npm run dev
-
-# Abrir en el navegador
-# http://localhost:3000
 ```
 
-## 📜 Scripts disponibles
+Open `http://localhost:3000`.
 
-| Script          | Descripción                                    |
-| --------------- | ---------------------------------------------- |
-| `npm run dev`   | Inicia el servidor de desarrollo con Turbopack |
-| `npm run build` | Construye la aplicación para producción        |
-| `npm run start` | Inicia el servidor de producción               |
-| `npm run lint`  | Ejecuta ESLint sobre el proyecto               |
+Spotify credentials are optional. Without them the app uses the public embed metadata endpoint. With them, the Web API is used as a fallback.
 
-## 🔐 Variables de entorno
+## Environment variables
 
-Copia `.env.example` a `.env.local` y completa:
+| Variable                | Required | Description                          |
+| ----------------------- | -------- | ------------------------------------ |
+| `SPOTIFY_CLIENT_ID`     | No       | Spotify Developer application ID     |
+| `SPOTIFY_CLIENT_SECRET` | No       | Spotify Developer application secret |
+| `NEXT_PUBLIC_APP_NAME`  | No       | Display name used by the UI          |
+| `NEXT_PUBLIC_APP_URL`   | No       | Public base URL of the application   |
 
-| Variable                | Descripción                                  | Obligatorio |
-| ----------------------- | -------------------------------------------- | ----------- |
-| `SPOTIFY_CLIENT_ID`     | Client ID de Spotify Developer Dashboard     | No*         |
-| `SPOTIFY_CLIENT_SECRET` | Client Secret de Spotify Developer Dashboard | No*         |
+## Scripts
 
-\* No son obligatorios porque la app usa primero el Web Embed de Spotify (público, sin token). Si se proveen, se usa la API oficial como respaldo.
+| Command                | Purpose                                 |
+| ---------------------- | --------------------------------------- |
+| `npm run dev`          | Start the development server            |
+| `npm run build`        | Create a production build               |
+| `npm run start`        | Serve the production build              |
+| `npm run lint`         | Run ESLint                              |
+| `npm run lint:fix`     | Fix auto-fixable lint issues            |
+| `npm run format`       | Format files with Prettier              |
+| `npm run format:check` | Verify formatting                       |
+| `npm run typecheck`    | Generate route types and run TypeScript |
 
-## 🏗️ Estructura del proyecto
+## API
 
-```
-spotify-downloader/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── download/route.ts   # Descarga MP3 con carátula y letra embebidas
-│   │   │   ├── cover/route.ts      # Descarga de carátula (legacy)
-│   │   │   ├── lyrics/route.ts     # Búsqueda de letras
-│   │   │   ├── preview/route.ts    # Vista previa de pista
-│   │   │   └── spotify.ts          # Metadatos de Spotify (Embed + API)
-│   │   ├── page.tsx                # Página principal (cliente)
-│   │   ├── layout.tsx
-│   │   └── globals.css
-│   └── lib/
-│       └── lyrics.ts               # Helper compartido de letras
-├── public/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # Integración continua
-├── .env.example
-├── .gitignore
-├── next.config.ts
-├── package.json
-├── tsconfig.json
-└── README.md
-```
+| Method | Endpoint        | Payload                                 | Result         |
+| ------ | --------------- | --------------------------------------- | -------------- |
+| `POST` | `/api/preview`  | `{ "url": "spotify track URL or URI" }` | Track metadata |
+| `POST` | `/api/lyrics`   | `{ "artist": "...", "title": "..." }`   | Lyrics text    |
+| `POST` | `/api/download` | `{ "url": "spotify track URL or URI" }` | MP3 file       |
 
-## 📦 Despliegue
+Invalid or unsupported track links return `400`. Upstream failures return `500` with an error message.
 
-### Vercel (recomendado)
+## Deployment
 
-1. Sube el código a GitHub.
-2. Importa el repositorio en [Vercel](https://vercel.com).
-3. Agrega las variables de entorno (`SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`) si las usas.
-4. Despliega.
+The current implementation is intended for local or controlled environments. A serverless deployment must provide `yt-dlp` and `ffmpeg` binaries inside the runtime, and the embed-based metadata source can change without notice. Validate those constraints before deploying.
 
-> Nota: ffmpeg y yt-dlp necesitan estar disponibles en el entorno de despliegue. En Vercel funciones serverless puede requerir capas personalizadas o binarios empaquetados.
+## Repository layout
 
-## 🧪 Flujo de trabajo Git (Conventional Commits)
-
-Este proyecto sigue [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat:     nueva funcionalidad
-fix:      corrección de error
-docs:     cambios en documentación
-chore:    tareas de mantenimiento
-refactor: refactorización sin cambios de comportamiento
+```text
+src/
+├── app/
+│   ├── api/
+│   │   ├── cover/route.ts
+│   │   ├── download/route.ts
+│   │   ├── lyrics/route.ts
+│   │   ├── preview/route.ts
+│   │   └── spotify.ts
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+└── lib/
+    └── lyrics.ts
 ```
 
-Ejemplo de commit:
+## Known limitations
 
-```bash
-git commit -m "feat: embebe carátula y letra en el MP3 con node-id3"
-```
+- The Spotify embed structure is not a stable public API.
+- Audio availability depends on third-party search results.
+- Serverless runtimes need bundled media binaries.
+- The local ffmpeg lookup currently targets the Windows winget installation; other systems rely on `ffmpeg` being on `PATH`.
 
-## 📄 Licencia
+## Commits
 
-MIT
+This repository uses Conventional Commits: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`.
+
+## License
+
+[MIT](LICENSE)
